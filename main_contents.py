@@ -44,9 +44,11 @@ SELECT
     , u.email_confirmed_at
     , u.last_sign_in_at
     , u.created_at
+    , ur.can_read
+    , ur.can_write
 FROM
     auth.users u
-    inner join public.user_roles ur on cast(u.id as varchar) = ur.uuid
+    inner join public.user_roles ur on u.id = ur.id
     """
     return supabase_read_sql(query)
 
