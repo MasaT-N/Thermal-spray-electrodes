@@ -75,7 +75,7 @@ def main():
 
         st.header("ユーザー役割一覧")
         user_roles_df = fetch_user_roles()
-        st.dataframe(user_roles_df, use_container_width=True)
+        st.dataframe(user_roles_df, width='stretch')
 
 if __name__ == "__main__":
     main()
