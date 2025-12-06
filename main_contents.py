@@ -205,6 +205,7 @@ ORDER BY
     (case when sirial_num is null then 0 else 1 end)
     , sirial_num desc
     , giga_due_date desc
+    , giga_order_num desc
     """
     parameters = {"item_code": item_code}
     # sirial_numは数値と文字列が混在する可能性があるため、String型として読み込む
