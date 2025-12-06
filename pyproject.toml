@@ -1,0 +1,13 @@
+[project]
+name = "test-supabase"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "polars>=1.35.2",
+    "psycopg2>=2.9.11",
+    "sqlalchemy>=2.0.44",
+    "streamlit>=1.52.1",
+    "supabase>=2.25.0",
+]
