@@ -1929,6 +1929,7 @@ name = "test-supabase"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "pandas" },
     { name = "polars" },
     { name = "psycopg2-binary" },
     { name = "sqlalchemy" },
@@ -1938,6 +1939,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "pandas", specifier = ">=2.2.0" },
     { name = "polars", specifier = ">=1.35.2" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },
     { name = "sqlalchemy", specifier = ">=2.0.44" },

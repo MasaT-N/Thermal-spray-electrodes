@@ -7,7 +7,7 @@ pages = {
         st.Page("sign_out.py", title="サインアウト"),
     ],
     "コンテンツ": [
-        st.Page("main_contents.py", title="メイン"),
+        st.Page("main_contents.py", title="溶射電極状況表示"),
     ],
 }
 

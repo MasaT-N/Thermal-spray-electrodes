@@ -1,6 +1,7 @@
 import streamlit as st
 import polars as pl
 from sqlalchemy import create_engine, exc
+import pandas as pd
 
 # st.secretsからデータベース設定を取得(psycopg2用)
 postgre_uid = st.secrets["postgre"]["uid"]
@@ -26,12 +27,13 @@ def supabase_read_sql(query: str, parameters: dict = None) -> pl.DataFrame:
         query (str): 実行するSQLクエリ
         parameters (dict, optional): クエリパラメータ。デフォルトはNone。
     Returns:
-        pl.DataFrame: データフレーム
+        pl.DataFrame: Polarsデータフレーム
     """
     try:
         engine = get_db_engine(conn_str)
-        df = pl.read_database(query, execute_options={"parameters": parameters}, connection=engine)
-        return df
+        # Pandasで読み込み、Polarsに変換する
+        pandas_df = pd.read_sql(query, engine, params=parameters)
+        return pl.from_pandas(pandas_df)
     except exc.SQLAlchemyError as e:
         st.error(f"データベースからのデータ取得中にエラーが発生しました: {e}")
         return pl.DataFrame()
