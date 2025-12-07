@@ -1,20 +1,9 @@
 import streamlit as st
-from supabase import create_client, Client
 from datetime import datetime
 import time
 import polars as pl
-from sqlalchemy import create_engine, exc
-from util import get_db_engine, supabase_read_sql
+from util import get_db_engine, supabase_read_sql, conn_str
 
-# st.secretsからデータベース設定を取得(psycopg2用)
-postgre_uid = st.secrets["postgre"]["uid"]
-postgre_pwd = st.secrets["postgre"]["pwd"]
-postgre_host = st.secrets["postgre"]["host"]
-postgre_port = st.secrets["postgre"]["port"]
-postgre_db = st.secrets["postgre"]["db"]
-
-# データベース接続文字列
-conn_str = f"postgresql://{postgre_uid}:{postgre_pwd}@{postgre_host}:{postgre_port}/{postgre_db}"
 
 def main():
 
@@ -106,14 +95,6 @@ def main():
             st.subheader(f"選択された品目: {item_code} の溶射電極状況一覧")
             st.dataframe(electrode_status_df, width="stretch")
 
-@st.cache_resource
-def get_db_engine(conn_string: str):
-    """SQLAlchemyのエンジンを作成し、キャッシュする"""
-    # pool_pre_ping=True は、プールから接続を取得する前に、
-    # その接続がまだ有効かテストするための「ping」を発行します。
-    # これにより、ネットワークの問題やタイムアウトで切断された接続を再利用しようとするのを防ぎます。
-    return create_engine(conn_string, pool_pre_ping=True)
-
 engine = get_db_engine(conn_str)
 
 def fetch_item_list() -> list[str]:
@@ -181,6 +162,10 @@ FROM
 def fetch_electrode_status_list(item_code: str) -> pl.DataFrame:
     """
     user_rolesテーブルからデータを取得し、Polars DataFrameとして返す
+    Args:
+        item_code (str): 品目コード
+    Returns:
+        pl.DataFrame: Polarsデータフレーム
     """
 
     query = """

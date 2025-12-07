@@ -1,8 +1,9 @@
 import streamlit as st
 import polars as pl
-from sqlalchemy import create_engine, exc
+from sqlalchemy import create_engine, exc, text
 import pandas as pd
-
+from collections.abc import Mapping
+from typing import Any
 # st.secretsからデータベース設定を取得(psycopg2用)
 postgre_uid = st.secrets["postgre"]["uid"]
 postgre_pwd = st.secrets["postgre"]["pwd"]
@@ -37,3 +38,51 @@ def supabase_read_sql(query: str, parameters: dict = None) -> pl.DataFrame:
     except exc.SQLAlchemyError as e:
         st.error(f"データベースからのデータ取得中にエラーが発生しました: {e}")
         return pl.DataFrame()
+def supabase_execute_sql(
+    queries: list[Mapping[str, Any]], use_transaction: bool = True
+) -> bool:
+    """SupabaseのPostgreSQLデータベースにSQLクエリを実行する
+    Args:
+        queries (list[Mapping[str, Any]]): 実行するSQLクエリ
+            各要素は {"sql": str, "params": dict} の形式の辞書。
+            "params"キーはオプショナル。
+        use_transaction (bool, optional): トランザクションを使用するかどうか。デフォルトはTrue。
+    Returns:
+        bool: クエリが成功したかどうかを示すブール値
+    
+    """
+    # クエリの事前チェック
+    for i, query in enumerate(queries):
+        if not isinstance(query, Mapping) or "sql" not in query:
+            msg = f"Invalid query format at index {i}. Each query must be a dict with a 'sql' key."
+            st.error(msg)
+            return False
+    try:
+        engine = get_db_engine(conn_str)
+        with engine.connect() as connection:
+            if use_transaction:
+                with connection.begin():  # トランザクションを開始
+                    for query in queries:
+                        sql = query["sql"]
+                        params = query.get("params")
+                        connection.execute(text(sql), params)
+            else:
+                # 自動コミットモードで実行
+                conn_autocommit = connection.execution_options(isolation_level="AUTOCOMMIT")
+                for query in queries:
+                    sql = query["sql"]
+                    params = query.get("params")
+                    conn_autocommit.execute(text(sql), params)
+
+        print(f"All {len(queries)} queries executed successfully.")
+        return True
+    except Exception as e:
+        # 接続エラーや実行エラーが発生した場合、トランザクションは自動的にロールバックされる
+        failed_sql = getattr(e, "statement", "N/A")
+        failed_params = getattr(e, "params", "N/A")
+        st.error(
+            f"Failed to execute queries. Transaction was rolled back. "
+            f"Error on SQL: {failed_sql}, Params: {failed_params}. Error: {e}",
+        )
+        return False
+    

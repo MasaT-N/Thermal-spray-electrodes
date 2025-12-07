@@ -7,6 +7,12 @@ import time
 supabase_url = st.secrets["supabase"]["url"]
 supabase_key = st.secrets["supabase"]["key"]
 
+st.set_page_config(
+        page_title="溶射電極管理システム",
+        page_icon="🏠",
+        initial_sidebar_state="expanded",
+    )
+
 # クライアントの作成
 @st.cache_resource
 def init_supabase_client(url: str, key: str) -> Client:
@@ -15,6 +21,7 @@ def init_supabase_client(url: str, key: str) -> Client:
 supabase: Client = init_supabase_client(supabase_url, supabase_key)
 
 # --- Streamlit UI の実装 ---
+
 
 st.title("🛡️ 溶射電極管理システム")
 
