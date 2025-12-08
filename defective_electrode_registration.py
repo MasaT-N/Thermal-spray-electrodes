@@ -20,25 +20,30 @@ def fetch_defective_electrodes() -> pl.DataFrame:
     """
     query = """
     SELECT
-        de.id,
-        de.item_code AS "品目",
-        de.serial_num AS "シリアル",
-        de.defect_date AS "不具合発生日時",
-        de.defect_status AS "不具合状況",
-        de.defect_description AS "不具合内容",
-        de.linde_remarks AS "リンデ備考",
-        de.created_at AS "登録日時", -- UTC
-        COALESCE(ur.user_name, de.created_by) AS "登録者"
+        de.id
+        , de.item_code AS "品目"
+        , de.serial_num AS "シリアル"
+        , de.defect_date AS "不具合発生日時"
+        , de.defect_status AS "不具合状況"
+        , de.defect_description AS "不具合内容"
+        , de.linde_remarks AS "リンデ備考"
+        , COALESCE(de.updated_at, de.created_at) AS "最終更新日時" -- UTC
+        , CASE
+            WHEN de.updated_at IS NOT NULL THEN COALESCE(ur_update.user_name, de.updated_by)
+            ELSE COALESCE(ur_create.user_name, de.created_by)
+        END AS "最終更新者"
     FROM
         public.defective_electrodes de
-    LEFT JOIN public.user_roles ur ON de.created_by = ur.email
-    ORDER BY de.created_at DESC
+    LEFT JOIN public.user_roles ur_create ON de.created_by = ur_create.email
+    LEFT JOIN public.user_roles ur_update ON de.updated_by = ur_update.email
+    ORDER BY
+        COALESCE(de.updated_at, de.created_at) DESC
     """
     df = supabase_read_sql(query)
 
     df = df.with_columns(
         pl.col("不具合発生日時").dt.strftime("%Y-%m-%d"),
-        pl.col("登録日時")
+        pl.col("最終更新日時")
         .dt.replace_time_zone("UTC")          # 元のデータがUTCであることを指定
         .dt.convert_time_zone("Asia/Tokyo")   # 日本時間に変換
         .dt.replace_time_zone(None)           # タイムゾーン情報を削除
@@ -50,7 +55,7 @@ def main():
     st.set_page_config(
         page_title="不具合電極登録",
         page_icon="⚠️",
-        layout="centered",
+        layout="wide",
         initial_sidebar_state="expanded",
     )
     st.title("⚠️ 不具合電極登録")
@@ -127,7 +132,7 @@ def main():
                             "defect_status": defect_status,
                             "defect_description": defect_description.strip(),
                             "linde_remarks": linde_remarks.strip(),
-                            "created_by": user_name
+                            "created_by": user_email
                         }
                     }
 
@@ -203,7 +208,9 @@ def main():
                                     defect_date = :defect_date, 
                                     defect_status = :defect_status, 
                                     defect_description = :defect_description,
-                                    linde_remarks = :linde_remarks
+                                    linde_remarks = :linde_remarks,
+                                    updated_at = NOW(),
+                                    updated_by = :updated_by
                                 WHERE id = :id
                             """,
                             "params": {
@@ -213,7 +220,8 @@ def main():
                                 "defect_date": updated_defect_date,
                                 "defect_status": updated_defect_status,
                                 "defect_description": updated_defect_description.strip(),
-                                "linde_remarks": updated_linde_remarks.strip()
+                                "linde_remarks": updated_linde_remarks.strip(),
+                                "updated_by": user_email
                             }
                         }
                         if supabase_execute_sql([update_query]):

@@ -51,9 +51,10 @@ def main():
                     "sql": """
                         UPDATE public.user_roles
                         SET user_name = :user_name
+                        ,updated_at = NOW()
                         WHERE id = (SELECT id FROM auth.users WHERE email = :email)
                     """,
-                    "params": {"user_name": new_user_name, "email": user_email}
+                    "params": {"user_name": new_user_name.strip(), "email": user_email}
                 }
 
                 if supabase_execute_sql([query]):
