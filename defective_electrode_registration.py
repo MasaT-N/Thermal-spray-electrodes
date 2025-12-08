@@ -27,11 +27,14 @@ def fetch_defective_electrodes() -> pl.DataFrame:
         , de.defect_status AS "不具合状況"
         , de.defect_description AS "不具合内容"
         , de.linde_remarks AS "リンデ備考"
-        , COALESCE(de.updated_at, de.created_at) AS "最終更新日時" -- UTC
-        , CASE
-            WHEN de.updated_at IS NOT NULL THEN COALESCE(ur_update.user_name, de.updated_by)
-            ELSE COALESCE(ur_create.user_name, de.created_by)
-        END AS "最終更新者"
+        , CASE 
+            WHEN de.updated_by != '' THEN ur_update.user_name
+            ELSE ur_create.user_name
+        END AS "登録者"
+        , CASE 
+            WHEN de.updated_at > de.created_at THEN de.updated_at 
+            ELSE de.created_at 
+        END AS "最終更新日時" -- UTC
     FROM
         public.defective_electrodes de
     LEFT JOIN public.user_roles ur_create ON de.created_by = ur_create.email
@@ -41,13 +44,33 @@ def fetch_defective_electrodes() -> pl.DataFrame:
     """
     df = supabase_read_sql(query)
 
-    df = df.with_columns(
-        pl.col("不具合発生日時").dt.strftime("%Y-%m-%d"),
+    # データフレームが空の場合は、後続の処理を行わずにそのまま返す
+    if df.is_empty():
+        return df
+
+    # 最終更新日時列のタイムゾーン変換とフォーマットを行う式を定義
+    # データベースから取得した時点ではUTCのタイムゾーン情報を持っている想定
+    datetime_format_expr = (
         pl.col("最終更新日時")
-        .dt.replace_time_zone("UTC")          # 元のデータがUTCであることを指定
-        .dt.convert_time_zone("Asia/Tokyo")   # 日本時間に変換
-        .dt.replace_time_zone(None)           # タイムゾーン情報を削除
-        .dt.strftime("%Y-%m-%d %H:%M:%S"),
+        .dt.convert_time_zone("Asia/Tokyo")  # 日本時間に変換
+        .dt.strftime("%Y-%m-%d %H:%M:%S")     # 文字列にフォーマット
+    )
+
+    # もし最終更新日時列が文字列型(String)なら、先にDatetime型に変換する
+    if df.schema["最終更新日時"] == pl.String:
+        datetime_format_expr = pl.col("最終更新日時").str.to_datetime().pipe(lambda series: datetime_format_expr)
+
+    # 不具合発生日時列のフォーマットを行う式を定義
+    defect_date_format_expr = pl.col("不具合発生日時").dt.strftime("%Y-%m-%d")
+
+    # もし不具合発生日時列が文字列型(String)なら、先にDatetime型に変換する
+    # `strptime` を使用して、日付のみの文字列 "YYYY-MM-DD" をパースする
+    if df.schema["不具合発生日時"] == pl.String:
+        defect_date_format_expr = pl.col("不具合発生日時").str.strptime(pl.Date, "%Y-%m-%d").dt.strftime("%Y-%m-%d")
+
+    df = df.with_columns(
+        defect_date_format_expr.alias("不具合発生日時"), # 定義した式を適用
+        datetime_format_expr.alias("最終更新日時"), # 定義した式を適用
     )   
     return df
 
