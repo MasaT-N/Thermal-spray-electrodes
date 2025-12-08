@@ -3,7 +3,14 @@ from supabase import create_client, Client
 import time
 
 def main():
-    st.title("サインアウトページ")
+    st.set_page_config(
+        page_title="サインアウト",
+        page_icon="🚪",
+        layout="centered",
+        initial_sidebar_state="expanded",
+    )
+    st.title("サインアウト")
+    st.subheader("溶射電極管理システムのサインアウトページです。")
 
     if 'authenticated' in st.session_state and st.session_state.authenticated:
         st.text("以下のボタンをクリックしてサインアウトしてください。")

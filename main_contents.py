@@ -2,14 +2,14 @@ import streamlit as st
 from datetime import datetime
 import time
 import polars as pl
-from util import get_db_engine, supabase_read_sql, conn_str
+from util import get_db_engine, supabase_read_sql, fetch_user_roles, conn_str
 
 
 def main():
 
     st.set_page_config(
         page_title="溶射電極状況表示",
-        page_icon="🏠",
+        page_icon="📈",
         layout="wide",
         initial_sidebar_state="expanded",
     )
@@ -42,7 +42,10 @@ def main():
 - 読み取り権限: {'あり' if can_read else 'なし'}
 - 書き込み権限: {'あり' if can_write else 'なし'}
                 """)
-
+        if can_read == False:
+            st.warning("読み取り権限がありません。  \n- 長津グループの管理者に権限付与を申請して下さい。  ")
+            return
+        
         st.divider()
 
         item_list = fetch_item_list()
@@ -111,53 +114,6 @@ FROM
     df = supabase_read_sql(query)
     return list(df["item_code"])
 
-def fetch_user_roles(email: str) -> pl.DataFrame:
-    """
-    user_rolesテーブルからデータを取得し、Polars DataFrameとして返す
-    """
-
-    query = """
-SELECT
-    u.email
-    , ur.user_name
-    , ur.role
-    , u.email_confirmed_at
-    , u.last_sign_in_at
-    , u.created_at
-    , ur.can_read
-    , ur.can_write
-FROM
-    auth.users u
-    inner join public.user_roles ur on u.id = ur.id
-where
-    u.email = %(email)s
-    """
-    parameters = {"email": email}
-    user_roles_df = supabase_read_sql(query, parameters=parameters)
-    # 日付列["email_confirmed_at", "last_sign_in_at", "created_at"]は、日本時間に変換
-    for date_col in ["email_confirmed_at", "last_sign_in_at", "created_at"]:
-        user_roles_df = user_roles_df.with_columns([
-            pl.col(date_col)
-            .dt.replace_time_zone("UTC")          # 元のデータがUTCであることを指定
-            .dt.convert_time_zone("Asia/Tokyo")   # 日本時間に変換
-            .dt.replace_time_zone(None)           # タイムゾーン情報を削除（+09:00を非表示にする）
-            .alias(date_col)
-        ])
-    return user_roles_df
-
-def fetch_item_list() -> list[str]:
-    """
-    品目リストビューからデータを取得し、Polars DataFrameとして返す
-    """
-
-    query = """
-SELECT
-    item_code                                   -- item_code
-FROM
-    public.v_item_list 
-    """
-    df = supabase_read_sql(query)
-    return list(df["item_code"])
 
 def fetch_electrode_status_list(item_code: str) -> pl.DataFrame:
     """

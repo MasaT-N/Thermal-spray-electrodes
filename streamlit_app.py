@@ -22,13 +22,15 @@ st.set_page_config(
 
 pages = {
     "アカウント管理": [
-        st.Page("sign_in.py", title="サインイン／サインアップ"),
-        st.Page("password_reset.py", title="パスワードの変更"),
-        st.Page("sign_out.py", title="サインアウト"),
+        st.Page("sign_in.py", title="サインイン／サインアップ",icon="🏠"),
+        st.Page("change_username.py", title="ユーザー名の変更",icon="👤"),
+        st.Page("password_reset.py", title="パスワードの変更",icon="🔑"),
+        st.Page("sign_out.py", title="サインアウト",icon="🚪"),
     ],
     "コンテンツ": [
-        st.Page("main_contents.py", title="溶射電極状況表示"),
-        st.Page("update_syukka_status.py", title="溶射電極出荷状況更新"),
+        st.Page("main_contents.py", title="溶射電極状況表示",icon="📈"),
+        st.Page("recent_shipments.py", title="最新出荷データ検索", icon="🔍"),
+        st.Page("update_syukka_status.py", title="溶射電極出荷状況更新", icon="🚚"),
     ],
 }
 

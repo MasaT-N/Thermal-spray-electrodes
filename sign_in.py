@@ -38,7 +38,7 @@ supabase: Client = init_supabase_client(supabase_url, supabase_key)
 # --- Streamlit UI の実装 ---
 
 
-st.title("🛡️ 溶射電極管理システム")
+
 
 def login_view():
     """サインインフォームを表示する関数"""
@@ -69,6 +69,8 @@ def login_view():
                 error_message = str(e)
                 if "Invalid login credentials" in error_message:
                     st.error("メールアドレスまたはパスワードが間違っています。")
+                elif "Email not confirmed" in error_message:
+                    st.error("メールアドレスが確認されていません。  \n- 確認メールからのリンクを送信してください。  \n- 迷惑メールに分類された場合は、`@mail.app.supabase.io`を許可してください。")
                 else:
                     st.error(f"サインイン中にエラーが発生しました: {error_message}")
 
@@ -114,19 +116,29 @@ def signup_view():
             # 失敗パターン: userが存在しない場合 (既に登録済みなど)
             elif not response.user:
                 st.error("このメールアドレスは既に登録されているか、登録できません。")
-                
-# --- メインロジック ---
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False    
+def main(): 
+    st.set_page_config(
+        page_title="溶射電極管理システム- サインイン",
+        page_icon="🏠",
+        layout="centered",
+        initial_sidebar_state="expanded",
+    )
+    st.title("🛡️ 溶射電極管理システム")               
+    # --- メインロジック ---
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False    
 
-if st.session_state.authenticated:
-    # サインイン済みの場合はメインコンテンツへリダイレクト
-    st.switch_page("main_contents.py")
-else:
-    # ページ選択ラジオボタン
-    page = st.radio("メニュー", ('サインイン', '新規アカウント登録'), key="page_selection", label_visibility="collapsed", horizontal=True)
+    if st.session_state.authenticated:
+        # サインイン済みの場合はメインコンテンツへリダイレクト
+        st.switch_page("main_contents.py")
+    else:
+        # ページ選択ラジオボタン
+        page = st.radio("メニュー", ('サインイン', '新規アカウント登録'), key="page_selection", label_visibility="collapsed", horizontal=True)
 
-    if page == 'サインイン':
-        login_view()
-    elif page == '新規アカウント登録':
-        signup_view()
+        if page == 'サインイン':
+            login_view()
+        elif page == '新規アカウント登録':
+            signup_view()
+            
+if __name__ == "__main__":
+    main()

@@ -85,4 +85,37 @@ def supabase_execute_sql(
             f"Error on SQL: {failed_sql}, Params: {failed_params}. Error: {e}",
         )
         return False
-    
+
+def fetch_user_roles(email: str) -> pl.DataFrame:
+    """
+    user_rolesテーブルからデータを取得し、Polars DataFrameとして返す
+    """
+
+    query = """
+SELECT
+    u.email
+    , ur.user_name
+    , ur.role
+    , u.email_confirmed_at
+    , u.last_sign_in_at
+    , u.created_at
+    , ur.can_read
+    , ur.can_write
+FROM
+    auth.users u
+    inner join public.user_roles ur on u.id = ur.id
+where
+    u.email = %(email)s
+    """
+    parameters = {"email": email}
+    user_roles_df = supabase_read_sql(query, parameters=parameters)
+    # 日付列["email_confirmed_at", "last_sign_in_at", "created_at"]は、日本時間に変換
+    for date_col in ["email_confirmed_at", "last_sign_in_at", "created_at"]:
+        user_roles_df = user_roles_df.with_columns([
+            pl.col(date_col)
+            .dt.replace_time_zone("UTC")          # 元のデータがUTCであることを指定
+            .dt.convert_time_zone("Asia/Tokyo")   # 日本時間に変換
+            .dt.replace_time_zone(None)           # タイムゾーン情報を削除（+09:00を非表示にする）
+            .alias(date_col)
+        ])
+    return user_roles_df
