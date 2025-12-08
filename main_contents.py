@@ -84,7 +84,7 @@ def main():
                 electrode_status_df = electrode_status_df.filter(pl.col("出荷実績日").dt.date() == target_datetime.date())
             
             if serial_from and serial_to:
-                electrode_status_df = electrode_status_df.filter(pl.col("シリアル").is_between(serial_from, serial_to))
+                electrode_status_df = electrode_status_df.filter(pl.col("シリアル").cast(pl.Utf8).is_between(serial_from, serial_to))
 
             # 表示用に日付列を YYYY-MM-DD 形式の文字列に変換する
             date_columns_to_format = ["ギガ納期", "出荷予定日", "出荷実績日", "台帳反映日"]
@@ -97,6 +97,10 @@ def main():
 
             sort_mode = st.toggle("並び順を納期と注番にする（デフォルトはシリアル順）", value=False, key="sort_mode")
             if sort_mode:
+                # 不具合情報（状況が'判定中' or '廃棄'）を除外する
+                electrode_status_df = electrode_status_df.filter(
+                    ~pl.col("状況").is_in(["判定中", "廃棄"])
+                )
                 electrode_status_df = electrode_status_df.sort(
                     by=[ "ギガ納期", "ギガ注番"],
                     descending=[True, True],
@@ -136,29 +140,54 @@ def fetch_electrode_status_list(item_code: str) -> pl.DataFrame:
     """
 
     query = """
-SELECT
-    id                                          -- ID
-    , linde_order_num                           as リンデ注番
-    , giga_order_num                            as ギガ注番
-    , item_code                                 as 品目
-    , giga_due_date                             as ギガ納期
-    , sirial_num                                as シリアル
-    , status                                    as 状況
-    , remarks                                   as 備考
-    , ship_plan                                 as 出荷予定日
-    , shiped_date                               as 出荷実績日
-    , daicho_haneibi                            as 台帳反映日
-    , linde_remarks                             as リンデ備考
-    , (case when sirial_num is null then 0 else 1 end) as SN有
-FROM
-    public.electrode_status 
-WHERE
-    item_code = %(item_code)s
-ORDER BY
-    (case when sirial_num is null then 0 else 1 end)
-    , sirial_num desc
-    , giga_due_date desc
-    , giga_order_num desc
+    -- 通常の電極ステータス (不具合登録されていないもの)
+    SELECT
+        id,
+        linde_order_num AS "リンデ注番",
+        giga_order_num AS "ギガ注番",
+        item_code AS "品目",
+        giga_due_date AS "ギガ納期",
+        sirial_num AS "シリアル",
+        status AS "状況",
+        remarks AS "備考",
+        ship_plan AS "出荷予定日",
+        shiped_date AS "出荷実績日",
+        daicho_haneibi AS "台帳反映日",
+        linde_remarks AS "リンデ備考",
+        NULL::date AS "不具合発生日", -- 不具合品ではないのでNULL
+        (CASE WHEN es.sirial_num IS NULL THEN 0 ELSE 1 END) AS "sn有"
+    FROM
+        public.electrode_status es
+    WHERE
+        es.item_code = %(item_code)s
+        AND NOT EXISTS (
+            SELECT 1
+            FROM public.defective_electrodes de
+            WHERE de.item_code = es.item_code AND de.serial_num = es.sirial_num
+        )
+
+    UNION ALL
+
+    -- 不具合電極の情報 (こちらを優先)
+    SELECT
+        id,
+        '-' AS "リンデ注番",
+        '-' AS "ギガ注番",
+        item_code AS "品目",
+        NULL::timestamp AS "ギガ納期",
+        serial_num AS "シリアル",
+        defect_status AS "状況",
+        defect_description AS "備考",
+        NULL::date AS "出荷予定日",
+        NULL::date AS "出荷実績日",
+        NULL::date AS "台帳反映日",
+        linde_remarks AS "リンデ備考",
+        defect_date AS "不具合発生日",
+        1 AS "sn有" -- 不具合品は必ずシリアルがあるので1
+    FROM
+        public.defective_electrodes
+    WHERE
+        item_code = %(item_code)s
     """
     parameters = {"item_code": item_code}
     # sirial_numは数値と文字列が混在する可能性があるため、String型として読み込む

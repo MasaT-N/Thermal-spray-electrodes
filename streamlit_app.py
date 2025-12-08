@@ -24,6 +24,7 @@ pages = {
     "各種コンテンツ": [
         st.Page("main_contents.py", title="溶射電極状況表示",icon="📈"),
         st.Page("recent_shipments.py", title="最新出荷データ検索", icon="🔍"),
+        st.Page("defective_electrode_registration.py", title="不具合電極登録", icon="⚠️"),
         st.Page("update_syukka_status.py", title="溶射電極出荷状況更新 (長津専用)", icon="🚚"),
     ],
     "アカウント管理": [
