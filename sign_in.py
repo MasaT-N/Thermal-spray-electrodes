@@ -2,7 +2,9 @@ import streamlit as st
 from supabase import create_client, Client
 import time
 
-
+# メール送信用ライブラリ
+import smtplib
+from email.mime.text import MIMEText
 # マニフェストの定義（ここでアプリ名をカスタム）
 # JavaScriptコード: <head>に<link rel="manifest">を追加（height=0で非表示）
 js_code = """
@@ -37,7 +39,39 @@ supabase: Client = init_supabase_client(supabase_url, supabase_key)
 
 # --- Streamlit UI の実装 ---
 
+def send_notification_email(to_addrs: list[str], new_user_email: str):
+    """管理者に新規ユーザー登録を通知するメールを送信する"""
+    try:
+        # st.secretsからメール設定を取得
+        smtp_server = st.secrets["email"]["smtp_server"]
+        smtp_port = st.secrets["email"]["smtp_port"]
+        smtp_user = st.secrets["email"]["smtp_user"]
+        smtp_password = st.secrets["email"]["smtp_password"]
+        from_addr = smtp_user
 
+        subject = "【溶射電極管理システム】新規ユーザー登録通知"
+        body = f"""
+管理者の皆様
+
+新しいユーザーがシステムに登録されました。
+内容を確認し、必要に応じて権限の付与を行ってください。
+
+登録メールアドレス: {new_user_email}
+
+溶射電極管理システム
+"""
+
+        msg = MIMEText(body, 'plain', 'utf-8')
+        msg['Subject'] = subject
+        msg['From'] = from_addr
+        msg['To'] = ", ".join(to_addrs)
+
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.sendmail(from_addr, to_addrs, msg.as_string())
+    except Exception as e:
+        st.warning(f"管理者への通知メール送信中にエラーが発生しました: {e}")
 
 
 def login_view():
@@ -111,6 +145,22 @@ def signup_view():
             # 成功パターン1: メール確認が必要な場合 (userは存在するがsessionはNone)
             if response.user and not response.session:
                 st.success(f"新規アカウント登録が完了しました！**{email}**宛に確認メールを送信しました。メール内のリンクをクリックしてアカウントを有効にしてください。")
+
+                # 管理者に通知メールを送信
+                try:
+                    # RLSをバイパスするため、サービスロールキーでクライアントを一時的に作成
+                    supabase_service = init_supabase_client(
+                        st.secrets["supabase"]["url"], 
+                        st.secrets["supabase"]["service_role_key"]
+                    )
+                    admin_users_response = supabase_service.table("user_roles").select("email").eq("role", "admin").execute()
+                    if admin_users_response.data:
+                        admin_emails = [user['email'] for user in admin_users_response.data]
+                        send_notification_email(admin_emails, email)
+                        st.info("管理者に新規登録が通知されました。")
+                except Exception as e:
+                    st.warning(f"管理者情報の取得中にエラーが発生しました: {e}")
+
                 time.sleep(3)
                 st.rerun()
             # 失敗パターン: userが存在しない場合 (既に登録済みなど)
