@@ -95,7 +95,18 @@ def main():
                         pl.col(col_name).dt.strftime("%Y-%m-%d").alias(col_name)
                     )
 
-            st.subheader(f"選択された品目: {item_code} の溶射電極状況一覧")
+            sort_mode = st.toggle("並び順を納期と注番にする（デフォルトはシリアル順）", value=False, key="sort_mode")
+            if sort_mode:
+                electrode_status_df = electrode_status_df.sort(
+                    by=[ "ギガ納期", "ギガ注番"],
+                    descending=[True, True],
+                )
+            else:
+                electrode_status_df = electrode_status_df.sort(
+                    by=["sn有", "シリアル", "ギガ納期", "ギガ注番"],
+                    descending=[False, True, True, True],
+                )
+            st.subheader(f" {item_code} の溶射電極状況一覧")
             st.dataframe(electrode_status_df, width="stretch")
 
 engine = get_db_engine(conn_str)
@@ -138,6 +149,7 @@ SELECT
     , shiped_date                               as 出荷実績日
     , daicho_haneibi                            as 台帳反映日
     , linde_remarks                             as リンデ備考
+    , (case when sirial_num is null then 0 else 1 end) as SN有
 FROM
     public.electrode_status 
 WHERE
