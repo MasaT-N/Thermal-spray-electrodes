@@ -1,5 +1,10 @@
 import streamlit as st
 
+st.set_page_config(
+        page_title="溶射電極管理システム",
+        page_icon="🏠",
+        initial_sidebar_state="expanded",
+    )
 
 # マニフェストの定義（ここでアプリ名をカスタム）
 # JavaScriptコード: <head>に<link rel="manifest">を追加（height=0で非表示）
@@ -14,11 +19,6 @@ js_code = """
 </script>
 """
 st.components.v1.html(js_code, height=0)
-st.set_page_config(
-        page_title="溶射電極管理システム",
-        page_icon="🏠",
-        initial_sidebar_state="expanded",
-    )
 
 pages = {
     "各種コンテンツ": [
