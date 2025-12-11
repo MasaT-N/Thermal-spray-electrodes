@@ -5,6 +5,13 @@ import time
 # メール送信用ライブラリ
 import smtplib
 from email.mime.text import MIMEText
+
+import os
+from dotenv import load_dotenv
+
+# .envファイルから環境変数を読み込む
+load_dotenv()
+
 # マニフェストの定義（ここでアプリ名をカスタム）
 # JavaScriptコード: <head>に<link rel="manifest">を追加（height=0で非表示）
 js_code = """
@@ -26,9 +33,9 @@ st.set_page_config(
     )
 
 # --- Supabase クライアントの初期化 ---
-# st.secretsから設定を取得
-supabase_url = st.secrets["supabase"]["url"]
-supabase_key = st.secrets["supabase"]["key"]
+# .envから設定を取得
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
 
 # クライアントの作成
 @st.cache_resource
@@ -42,11 +49,12 @@ supabase: Client = init_supabase_client(supabase_url, supabase_key)
 def send_notification_email(to_addrs: list[str], new_user_email: str):
     """管理者に新規ユーザー登録を通知するメールを送信する"""
     try:
-        # st.secretsからメール設定を取得
-        smtp_server = st.secrets["email"]["smtp_server"]
-        smtp_port = st.secrets["email"]["smtp_port"]
-        smtp_user = st.secrets["email"]["smtp_user"]
-        smtp_password = st.secrets["email"]["smtp_password"]
+        # .envからメール設定を取得
+        smtp_server = os.getenv("SMTP_SERVER")
+        smtp_port = os.getenv("SMTP_PORT")
+        smtp_user = os.getenv("SMTP_USER")
+        smtp_password = os.getenv("SMTP_PASSWORD")
+
         from_addr = smtp_user
 
         subject = "【溶射電極管理システム】新規ユーザー登録通知"
@@ -154,8 +162,8 @@ def signup_view():
                 try:
                     # RLSをバイパスするため、サービスロールキーでクライアントを一時的に作成
                     supabase_service = init_supabase_client(
-                        st.secrets["supabase"]["url"], 
-                        st.secrets["supabase"]["service_role_key"]
+                        os.getenv("SUPABASE_URL"), 
+                        os.getenv("SUPABASE_SERVICE_KEY")
                     )
                     admin_users_response = supabase_service.table("user_roles").select("email").eq("role", "admin").execute()
                     if admin_users_response.data:

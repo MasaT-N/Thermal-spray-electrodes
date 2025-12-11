@@ -1,6 +1,11 @@
 import streamlit as st
 from supabase import create_client, Client
 import time
+import os
+from dotenv import load_dotenv
+
+# .envファイルから環境変数を読み込む
+load_dotenv()
 
 def main():
     st.set_page_config(
@@ -15,8 +20,8 @@ def main():
     if 'authenticated' in st.session_state and st.session_state.authenticated:
         st.text("以下のボタンをクリックしてサインアウトしてください。")
         if st.button("ログアウト", type="primary"):
-            supabase_url = st.secrets["supabase"]["url"]
-            supabase_key = st.secrets["supabase"]["key"]
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_KEY")
             supabase: Client = create_client(supabase_url, supabase_key)
             supabase.auth.sign_out()
             st.session_state.authenticated = False

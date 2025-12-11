@@ -1,15 +1,21 @@
 import streamlit as st
 from supabase import create_client, Client
 import time
+import os
+from dotenv import load_dotenv
 
+# .envファイルから環境変数を読み込む
+load_dotenv()
 
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 # Supabaseクライアントを初期化
 @st.cache_resource
 def init_supabase_client(url: str, key: str) -> Client:
     return create_client(url, key)
 
-supabase: Client = init_supabase_client(st.secrets["supabase"]["url"], st.secrets["supabase"]["key"])
+supabase: Client = init_supabase_client(SUPABASE_URL, SUPABASE_KEY)
 
 def password_reset_view():
     """パスワード変更フォームを表示する関数"""

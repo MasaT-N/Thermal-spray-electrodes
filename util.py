@@ -4,12 +4,18 @@ from sqlalchemy import create_engine, exc, text
 import pandas as pd
 from collections.abc import Mapping
 from typing import Any
-# st.secretsからデータベース設定を取得(psycopg2用)
-postgre_uid = st.secrets["postgre"]["uid"]
-postgre_pwd = st.secrets["postgre"]["pwd"]
-postgre_host = st.secrets["postgre"]["host"]
-postgre_port = st.secrets["postgre"]["port"]
-postgre_db = st.secrets["postgre"]["db"]
+import os
+from dotenv import load_dotenv
+
+# .envファイルから環境変数を読み込む
+load_dotenv()
+
+# .envからデータベース設定を取得(psycopg2用)
+postgre_uid = os.getenv("POSTGRE_UID")
+postgre_pwd = os.getenv("POSTGRE_PWD")
+postgre_host = os.getenv("POSTGRE_HOST")
+postgre_port = os.getenv("POSTGRE_PORT")
+postgre_db = os.getenv("POSTGRE_DB")
 
 # データベース接続文字列
 conn_str = f"postgresql://{postgre_uid}:{postgre_pwd}@{postgre_host}:{postgre_port}/{postgre_db}"
