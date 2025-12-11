@@ -12,26 +12,6 @@ from dotenv import load_dotenv
 # .envファイルから環境変数を読み込む
 load_dotenv()
 
-# マニフェストの定義（ここでアプリ名をカスタム）
-# JavaScriptコード: <head>に<link rel="manifest">を追加（height=0で非表示）
-js_code = """
-<script>
-  if (!document.querySelector('link[rel="manifest"]')) {
-    const link = document.createElement('link');
-    link.rel = 'manifest';
-    link.href = '/static/manifest.json';
-    document.head.appendChild(link);
-  }
-</script>
-"""
-st.components.v1.html(js_code, height=0)
-
-st.set_page_config(
-        page_title="溶射電極管理システム",
-        page_icon="🏠",
-        initial_sidebar_state="expanded",
-    )
-
 # --- Supabase クライアントの初期化 ---
 # .envから設定を取得
 supabase_url = os.getenv("SUPABASE_URL")
