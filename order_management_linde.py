@@ -70,6 +70,10 @@ def render_new_order_form():
         submitted = st.form_submit_button("新規登録実行", type="primary")
 
         if submitted:
+            if is_giga_order_exist(giga_order_num):
+                st.error(f"ギガ注番 `{giga_order_num}` は既に登録されています。別の注番を指定してください。")
+                return
+            
             # --- 入力値のバリデーション ---
             if not all([giga_order_num, item_code, giga_due_date, order_qty]):
                 st.error("必須項目 (*) をすべて入力してください。")
@@ -298,6 +302,25 @@ def fetch_electrode_status_list(item_code: str, limit: int = 50, params: dict = 
     """
     df = supabase_read_sql(query, parameters=parameters)
     return df
+
+def is_giga_order_exist(giga_order_num: str) -> bool:
+    """
+    指定されたギガ注番と品目コードの組み合わせが存在するか確認する
+    Args:
+        giga_order_num (str): ギガ注番
+    Returns:
+        bool: 存在する場合はTrue、存在しない場合はFalse
+    """
+    query = """
+    SELECT COUNT(*) AS order_count
+    FROM public.electrode_status
+    WHERE giga_order_num = :giga_order_num;
+    """
+    params = {"giga_order_num": giga_order_num}
+    df = supabase_read_sql(query, parameters=params)
+    if not df.is_empty() and df["order_count"][0] > 0:
+        return True
+    return False
 
 if __name__ == "__main__":
     main()
