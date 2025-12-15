@@ -159,7 +159,7 @@ def fetch_electrode_status_list(item_code: str) -> pl.DataFrame:
     FROM
         public.electrode_status es
     WHERE
-        es.item_code = %(item_code)s
+        es.item_code = :item_code
         AND NOT EXISTS (
             SELECT 1
             FROM public.defective_electrodes de
@@ -187,7 +187,7 @@ def fetch_electrode_status_list(item_code: str) -> pl.DataFrame:
     FROM
         public.defective_electrodes
     WHERE
-        item_code = %(item_code)s
+        item_code = :item_code
     """
     parameters = {"item_code": item_code}
     # sirial_numは数値と文字列が混在する可能性があるため、String型として読み込む

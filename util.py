@@ -38,9 +38,13 @@ def supabase_read_sql(query: str, parameters: dict = None) -> pl.DataFrame:
     """
     try:
         engine = get_db_engine(conn_str)
-        # Pandasで読み込み、Polarsに変換する
-        pandas_df = pd.read_sql(query, engine, params=parameters)
-        return pl.from_pandas(pandas_df)
+        with engine.connect() as connection:
+            # SQLAlchemy Coreのexecuteを使い、結果を直接Polars DataFrameに変換
+            # これにより、:key形式のパラメータが使えるようになる
+            result = connection.execute(text(query), parameters)
+            pandas_df = pd.DataFrame(result.fetchall(), columns=result.keys())
+            df = pl.from_pandas(pandas_df)
+            return df
     except exc.SQLAlchemyError as e:
         st.error(f"データベースからのデータ取得中にエラーが発生しました: {e}")
         return pl.DataFrame()
@@ -111,7 +115,7 @@ FROM
     auth.users u
     inner join public.user_roles ur on u.id = ur.id
 where
-    u.email = %(email)s
+    u.email = :email
     """
     parameters = {"email": email}
     user_roles_df = supabase_read_sql(query, parameters=parameters)
