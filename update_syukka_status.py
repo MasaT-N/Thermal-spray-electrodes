@@ -10,6 +10,7 @@ from util import (
     conn_str,
 )
 
+
 def main():
 
     st.set_page_config(
@@ -70,14 +71,20 @@ def main():
                         .cast(pl.Int32)
                     )
                     update_df = fetch_electrode_status_list(update_df)
-                    updatable_df = update_df.filter(pl.col("exists") == True).drop("exists")
-                    not_updatable_df = update_df.filter(pl.col("exists") == False).drop("exists")
-                    
+                    updatable_df = update_df.filter(pl.col("exists") == True).drop(
+                        "exists"
+                    )
+                    not_updatable_df = update_df.filter(pl.col("exists") == False).drop(
+                        "exists"
+                    )
+
                     st.text("更新対象のデータ")
                     st.dataframe(updatable_df, width="stretch")
                     if not_updatable_df.is_empty() == False:
-                        st.warning(f"更新出来ないデータが{ not_updatable_df.shape(0) }件あります。")
-                        st.dataframe(not_updatable_df, width="stretch")            
+                        st.warning(
+                            f"更新出来ないデータが{ not_updatable_df.shape(0) }件あります。"
+                        )
+                        st.dataframe(not_updatable_df, width="stretch")
                     if updatable_df.is_empty() == False:
                         update_button = st.button("更新する", type="primary")
                         if update_button:
@@ -87,10 +94,10 @@ def main():
                             else:
                                 st.error("更新中にエラーが発生しました。")
 
-       
             except Exception as e:
                 st.error(f"ファイルの読み込み中にエラーが発生しました: {e}")
                 return
+
 
 def fetch_electrode_status_list(update_df: pl.DataFrame) -> pl.DataFrame:
     """読み込んだ出荷シリアルデータを元に電極状況表を更新対象のデータを取得
@@ -127,23 +134,20 @@ WHERE
 """
         result_df = supabase_read_sql(query, parameters=params)
         if result_df.is_empty() == False:
-            dict_exists={
+            dict_exists = {
                 "giga_order_num": row["giga_order_num"],
                 "edaban": row["edaban"],
                 "exists": True,
             }
             exists_df = pl.concat([exists_df, pl.DataFrame([dict_exists])])
     try:
-        updatable_df = update_df.join(exists_df, on=["giga_order_num", "edaban"], how="inner")
+        updatable_df = update_df.join(
+            exists_df, on=["giga_order_num", "edaban"], how="inner"
+        )
         return updatable_df
     except Exception as e:
         st.error(f"更新対象のデータの取得中にエラーが発生しました: {e}")
         return pl.DataFrame()
-    
-
-                
-            
-
 
 
 def update_electrode_status_list(update_df: pl.DataFrame) -> bool:

@@ -2,7 +2,7 @@ import streamlit as st
 from datetime import datetime
 import time
 import polars as pl
-from util import get_db_engine, supabase_read_sql, fetch_user_roles, conn_str
+from util import supabase_read_sql, fetch_user_roles, conn_str
 
 
 def main():
@@ -15,14 +15,14 @@ def main():
     )
     st.title("溶射電極状況表示")
     # 認証されていない、またはセッション状態が存在しない場合
-    if 'authenticated' not in st.session_state or not st.session_state.authenticated:
+    if "authenticated" not in st.session_state or not st.session_state.authenticated:
         st.warning("ログインしてください。")
         time.sleep(2)
         st.switch_page("sign_in.py")
         return
     else:
         # 認証されている場合
-        user_email = st.session_state.get('user_email', '不明なユーザー')
+        user_email = st.session_state.get("user_email", "不明なユーザー")
         user_roles_df = fetch_user_roles(email=user_email)
         user_name = user_roles_df["user_name"][0]
         last_sign_in = user_roles_df["last_sign_in_at"][0].strftime("%Y-%m-%d %H:%M:%S")
@@ -31,25 +31,33 @@ def main():
         can_write = user_roles_df["can_write"][0]
         email_confirmed_at = user_roles_df["email_confirmed_at"][0]
         if email_confirmed_at is None:
-            st.warning("メールアドレスが確認されていません。確認メールを再送信してください。")
+            st.warning(
+                "メールアドレスが確認されていません。確認メールを再送信してください。"
+            )
             time.sleep(2)
             st.switch_page("sign_in.py")
             return
-        st.success(f"""
+        st.success(
+            f"""
 ##### ようこそ、{user_name}さんとしてログインしています。   
 - 最終ログイン日時: {last_sign_in}
 - 登録日時: {created_at}
 - 読み取り権限: {'あり' if can_read else 'なし'}
 - 書き込み権限: {'あり' if can_write else 'なし'}
-                """)
+                """
+        )
         if can_read == False:
-            st.warning("読み取り権限がありません。  \n- 長津グループの管理者に権限付与を申請して下さい。  ")
+            st.warning(
+                "読み取り権限がありません。  \n- 長津グループの管理者に権限付与を申請して下さい。  "
+            )
             return
-        
+
         st.divider()
 
         item_list = fetch_item_list()
-        item_code = st.selectbox("品目を選択してください", options=item_list, key="item_code")
+        item_code = st.selectbox(
+            "品目を選択してください", options=item_list, key="item_code"
+        )
         if item_code:
             # 検索条件の入力欄をExpander内に配置
             with st.expander("検索条件で絞り込む", expanded=False):
@@ -69,40 +77,65 @@ def main():
             # 検索条件に基づいてDataFrameをフィルタリング
             # st.date_inputはdateオブジェクトを返すため、datetimeに変換してから比較する
             if giga_due_date_from and giga_due_date_to:
-                start_datetime = datetime.combine(giga_due_date_from, datetime.min.time())
+                start_datetime = datetime.combine(
+                    giga_due_date_from, datetime.min.time()
+                )
                 end_datetime = datetime.combine(giga_due_date_to, datetime.max.time())
-                electrode_status_df = electrode_status_df.filter(pl.col("ギガ納期").is_between(start_datetime, end_datetime))
+                electrode_status_df = electrode_status_df.filter(
+                    pl.col("ギガ納期").is_between(start_datetime, end_datetime)
+                )
             elif giga_due_date_from:
-                start_datetime = datetime.combine(giga_due_date_from, datetime.min.time())
-                electrode_status_df = electrode_status_df.filter(pl.col("ギガ納期") >= start_datetime)
+                start_datetime = datetime.combine(
+                    giga_due_date_from, datetime.min.time()
+                )
+                electrode_status_df = electrode_status_df.filter(
+                    pl.col("ギガ納期") >= start_datetime
+                )
             elif giga_due_date_to:
                 end_datetime = datetime.combine(giga_due_date_to, datetime.max.time())
-                electrode_status_df = electrode_status_df.filter(pl.col("ギガ納期") <= end_datetime)
+                electrode_status_df = electrode_status_df.filter(
+                    pl.col("ギガ納期") <= end_datetime
+                )
 
             if shiped_date:
                 target_datetime = datetime.combine(shiped_date, datetime.min.time())
-                electrode_status_df = electrode_status_df.filter(pl.col("出荷実績日").dt.date() == target_datetime.date())
-            
+                electrode_status_df = electrode_status_df.filter(
+                    pl.col("出荷実績日").dt.date() == target_datetime.date()
+                )
+
             if serial_from and serial_to:
-                electrode_status_df = electrode_status_df.filter(pl.col("シリアル").cast(pl.Utf8).is_between(serial_from, serial_to))
+                electrode_status_df = electrode_status_df.filter(
+                    pl.col("シリアル").cast(pl.Utf8).is_between(serial_from, serial_to)
+                )
 
             # 表示用に日付列を YYYY-MM-DD 形式の文字列に変換する
-            date_columns_to_format = ["ギガ納期", "出荷予定日", "出荷実績日", "台帳反映日"]
+            date_columns_to_format = [
+                "ギガ納期",
+                "出荷予定日",
+                "出荷実績日",
+                "台帳反映日",
+            ]
             for col_name in date_columns_to_format:
                 # DataFrameに列が存在し、かつ日付/日時型である場合のみ変換を試みる
-                if col_name in electrode_status_df.columns and electrode_status_df[col_name].dtype in [pl.Date, pl.Datetime]:
+                if col_name in electrode_status_df.columns and electrode_status_df[
+                    col_name
+                ].dtype in [pl.Date, pl.Datetime]:
                     electrode_status_df = electrode_status_df.with_columns(
                         pl.col(col_name).dt.strftime("%Y-%m-%d").alias(col_name)
                     )
 
-            sort_mode = st.toggle("並び順を納期と注番にする（デフォルトはシリアル順）", value=False, key="sort_mode")
+            sort_mode = st.toggle(
+                "並び順を納期と注番にする（デフォルトはシリアル順）",
+                value=False,
+                key="sort_mode",
+            )
             if sort_mode:
                 # 不具合情報（状況が'判定中' or '廃棄'）を除外する
                 electrode_status_df = electrode_status_df.filter(
                     ~pl.col("状況").is_in(["判定中", "廃棄"])
                 )
                 electrode_status_df = electrode_status_df.sort(
-                    by=[ "ギガ納期", "ギガ注番"],
+                    by=["ギガ納期", "ギガ注番"],
                     descending=[True, True],
                 )
             else:
@@ -113,7 +146,9 @@ def main():
             st.subheader(f" {item_code} の溶射電極状況一覧")
             st.dataframe(electrode_status_df, width="stretch")
 
-engine = get_db_engine(conn_str)
+
+
+
 
 def fetch_item_list() -> list[str]:
     """
@@ -194,6 +229,7 @@ def fetch_electrode_status_list(item_code: str) -> pl.DataFrame:
     electrode_status_list = supabase_read_sql(query, parameters=parameters)
 
     return electrode_status_list
+
 
 if __name__ == "__main__":
     main()

@@ -20,6 +20,7 @@ postgre_db = os.getenv("POSTGRE_DB")
 # データベース接続文字列
 conn_str = f"postgresql://{postgre_uid}:{postgre_pwd}@{postgre_host}:{postgre_port}/{postgre_db}"
 
+
 @st.cache_resource
 def get_db_engine(conn_string: str):
     """SQLAlchemyのエンジンを作成し、キャッシュする"""
@@ -27,6 +28,7 @@ def get_db_engine(conn_string: str):
     # その接続がまだ有効かテストするための「ping」を発行します。
     # これにより、ネットワークの問題やタイムアウトで切断された接続を再利用しようとするのを防ぎます。
     return create_engine(conn_string, pool_pre_ping=True)
+
 
 def supabase_read_sql(query: str, parameters: dict = None) -> pl.DataFrame:
     """SupabaseのPostgreSQLデータベースからSQLクエリを実行し、Polars DataFrameとして返す
@@ -48,6 +50,8 @@ def supabase_read_sql(query: str, parameters: dict = None) -> pl.DataFrame:
     except exc.SQLAlchemyError as e:
         st.error(f"データベースからのデータ取得中にエラーが発生しました: {e}")
         return pl.DataFrame()
+
+
 def supabase_execute_sql(
     queries: list[Mapping[str, Any]], use_transaction: bool = True
 ) -> bool:
@@ -59,7 +63,7 @@ def supabase_execute_sql(
         use_transaction (bool, optional): トランザクションを使用するかどうか。デフォルトはTrue。
     Returns:
         bool: クエリが成功したかどうかを示すブール値
-    
+
     """
     # クエリの事前チェック
     for i, query in enumerate(queries):
@@ -78,7 +82,9 @@ def supabase_execute_sql(
                         connection.execute(text(sql), params)
             else:
                 # 自動コミットモードで実行
-                conn_autocommit = connection.execution_options(isolation_level="AUTOCOMMIT")
+                conn_autocommit = connection.execution_options(
+                    isolation_level="AUTOCOMMIT"
+                )
                 for query in queries:
                     sql = query["sql"]
                     params = query.get("params")
@@ -95,6 +101,7 @@ def supabase_execute_sql(
             f"Error on SQL: {failed_sql}, Params: {failed_params}. Error: {e}",
         )
         return False
+
 
 def fetch_user_roles(email: str) -> pl.DataFrame:
     """
@@ -121,11 +128,15 @@ where
     user_roles_df = supabase_read_sql(query, parameters=parameters)
     # 日付列["email_confirmed_at", "last_sign_in_at", "created_at"]は、日本時間に変換
     for date_col in ["email_confirmed_at", "last_sign_in_at", "created_at"]:
-        user_roles_df = user_roles_df.with_columns([
-            pl.col(date_col)
-            .dt.replace_time_zone("UTC")          # 元のデータがUTCであることを指定
-            .dt.convert_time_zone("Asia/Tokyo")   # 日本時間に変換
-            .dt.replace_time_zone(None)           # タイムゾーン情報を削除（+09:00を非表示にする）
-            .alias(date_col)
-        ])
+        user_roles_df = user_roles_df.with_columns(
+            [
+                pl.col(date_col)
+                .dt.replace_time_zone("UTC")  # 元のデータがUTCであることを指定
+                .dt.convert_time_zone("Asia/Tokyo")  # 日本時間に変換
+                .dt.replace_time_zone(
+                    None
+                )  # タイムゾーン情報を削除（+09:00を非表示にする）
+                .alias(date_col)
+            ]
+        )
     return user_roles_df

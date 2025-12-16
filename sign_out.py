@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 # .envファイルから環境変数を読み込む
 load_dotenv()
 
+
 def main():
     st.set_page_config(
         page_title="サインアウト",
@@ -17,7 +18,7 @@ def main():
     st.title("サインアウト")
     st.subheader("溶射電極管理システムのサインアウトページです。")
 
-    if 'authenticated' in st.session_state and st.session_state.authenticated:
+    if "authenticated" in st.session_state and st.session_state.authenticated:
         st.text("以下のボタンをクリックしてサインアウトしてください。")
         if st.button("ログアウト", type="primary"):
             supabase_url = os.getenv("SUPABASE_URL")
@@ -32,6 +33,7 @@ def main():
         st.warning("現在、サインインしていません。")
         time.sleep(1)
         st.switch_page("sign_in.py")
+
 
 if __name__ == "__main__":
     main()

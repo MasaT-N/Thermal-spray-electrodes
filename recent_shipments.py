@@ -115,7 +115,9 @@ def fetch_shipment_data(target_dates: list[str]) -> pl.DataFrame:
     """
     if not target_dates:
         return pl.DataFrame()
-    target_dates_template_str = ", ".join([f":date{i}" for i, date in enumerate(target_dates)])
+    target_dates_template_str = ", ".join(
+        [f":date{i}" for i, date in enumerate(target_dates)]
+    )
     parameters = {f"date{i}": date for i, date in enumerate(target_dates)}
     data_query = f"""
     SELECT

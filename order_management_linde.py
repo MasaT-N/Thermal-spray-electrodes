@@ -6,6 +6,7 @@ from util import supabase_read_sql, supabase_execute_sql, fetch_user_roles
 
 item_codes = []
 
+
 def main():
     global item_codes
     st.set_page_config(
@@ -31,34 +32,55 @@ def main():
         return
 
     # 品目リストをデータベースから取得 (キャッシュを活用)
-    @st.cache_data(ttl=300)    # 5分キャッシュ
+    @st.cache_data(ttl=10)  # 10秒キャッシュ
     def get_item_codes():
-        df = supabase_read_sql("SELECT DISTINCT item_code FROM public.electrode_status ORDER BY item_code")
+        df = supabase_read_sql(
+            "SELECT DISTINCT item_code FROM public.electrode_status ORDER BY item_code"
+        )
         if not df.is_empty():
             return df["item_code"].to_list()
         return []
 
     item_codes = get_item_codes()
 
-    # --- UIの定義 (タブ) ---
-    tab1, tab2 = st.tabs(["新規受注登録", "受注編集・削除"])
+    # --- UIの定義 (タブの代わりにst.radioを使用して状態を維持) ---
+    tab_options = ["新規受注登録", "新規受注CSV登録", "受注編集・削除"]
+    
+    # セッションステートでアクティブなタブを管理
+    if "order_management_active_tab" not in st.session_state:
+        st.session_state.order_management_active_tab = tab_options[0]
 
-    with tab1:
+    selected_tab = st.radio(
+        "メニュー",
+        options=tab_options,
+        key="order_management_active_tab",
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+
+    if selected_tab == "新規受注登録":
         render_new_order_form()
-
-    with tab2:
+    elif selected_tab == "新規受注CSV登録":
+        render_new_ordercsv_form()
+    elif selected_tab == "受注編集・削除":
         render_edit_order_form()
-
 
 def render_new_order_form():
     """新規受注登録フォームをレンダリングする"""
     st.header("新規受注登録")
 
-    input_mode = st.toggle("品目を手入力",value=False, key="input_mode")
+    input_mode = st.toggle("品目を手入力", value=False, key="input_mode")
     if input_mode:
-        item_code = st.text_input("品目*", help="必須項目です。", placeholder="品目を入力して下さい。")
+        item_code = st.text_input(
+            "品目*", help="必須項目です。", placeholder="品目を入力して下さい。"
+        )
     else:
-        item_code = st.selectbox("品目*", options=item_codes, index=None, placeholder="品目を選択してください")
+        item_code = st.selectbox(
+            "品目*",
+            options=item_codes,
+            index=None,
+            placeholder="品目を選択してください",
+        )
 
     with st.form("new_order_form"):
         st.markdown("##### 新規受注情報を入力してください")
@@ -71,9 +93,11 @@ def render_new_order_form():
 
         if submitted:
             if is_giga_order_exist(giga_order_num):
-                st.error(f"ギガ注番 `{giga_order_num}` は既に登録されています。別の注番を指定してください。")
+                st.error(
+                    f"ギガ注番 `{giga_order_num}` は既に登録されています。別の注番を指定してください。"
+                )
                 return
-            
+
             # --- 入力値のバリデーション ---
             if not all([giga_order_num, item_code, giga_due_date, order_qty]):
                 st.error("必須項目 (*) をすべて入力してください。")
@@ -123,14 +147,97 @@ def render_new_order_form():
         st.subheader(f" {item_code} の溶射電極状況一覧")
         st.dataframe(electrode_status_df, width="stretch")
 
+def render_new_ordercsv_form():
+    """新規受注CSV登録フォームをレンダリングする"""
+    st.header("新規受注CSV登録")
+
+    st.info("専用フォーマットのCSVファイルをアップロードして、一括で受注データを登録します。  \n- 下記のサンプルCSVダウンロードボタンでフォーマットを確認してください。")
+    sample_csv = "ギガ注番,品目,ギガ納期,受注数,リンデ注番\nGIGA12345,ITEM001,2024-07-15,10,LINDE67890\nGIGA12346,ITEM002,2024-07-20,5,\n"
+    st.download_button("サンプルCSVダウンロード", type="primary", data=sample_csv.encode("cp932"), file_name="sample_order_format.csv", mime="text/csv")
+
+    csvfile = st.file_uploader("CSVファイルをアップロードしてください", type=["csv"], help="CSVファイルには、ギガ注番、品目、ギガ納期、受注数、リンデ注番の列が必要です。")
+    if csvfile is not None:
+        try:
+            import pandas as pd
+
+            df = pd.read_csv(csvfile, header=0, encoding="cp932")
+            required_columns = ["ギガ注番", "品目", "ギガ納期", "受注数"]
+            for col in required_columns:
+                if col not in df.columns:
+                    st.error(f"CSVファイルに必須列 '{col}' が含まれていません。")
+                    return
+            st.success("CSVファイルを正常に読み込みました。内容を確認してください。")
+            st.dataframe(df, width="stretch")
+        # csvのエンコードエラー対策
+        except UnicodeDecodeError as e:
+            st.error(f"CSVファイルのエンコードに問題があります。Shift-JISまたはCP932形式のファイルをアップロードしてください: {e}")
+            return
+        except Exception as e:
+            st.error(f"CSVファイルの読み込み中にエラーが発生しました: {e}")
+            return
+        
+        insert_button = st.button("CSVデータを登録する", type="primary")
+        if insert_button:
+            # --- 登録処理 ---
+
+            queries = []
+            for _, row in df.iterrows():
+                giga_order_num = row["ギガ注番"]
+                item_code = row["品目"]
+                giga_due_date = row["ギガ納期"]
+                order_qty = int(row["受注数"])
+                linde_order_num = row.get("リンデ注番", None)
+
+                if is_giga_order_exist(giga_order_num):
+                    st.warning(f"ギガ注番 `{giga_order_num}` は既に登録されています。スキップします。")
+                    continue
+
+                base_sql_columns = "giga_order_num, item_code, giga_due_date, edaban"
+                base_sql_values = ":giga_order_num, :item_code, :giga_due_date, :edaban"
+                base_params = {
+                    "giga_order_num": giga_order_num,
+                    "item_code": item_code,
+                    "giga_due_date": giga_due_date,
+                }
+
+                if linde_order_num:
+                    sql_columns = f"linde_order_num, {base_sql_columns}"
+                    sql_values = f":linde_order_num, {base_sql_values}"
+                    base_params["linde_order_num"] = linde_order_num
+                else:
+                    sql_columns = base_sql_columns
+                    sql_values = base_sql_values
+
+                for i in range(order_qty):
+                    params = base_params.copy()
+                    params["edaban"] = i + 1
+                    sql = f"""
+                        INSERT INTO public.electrode_status ({sql_columns})
+                        VALUES ({sql_values});
+                    """
+                    queries.append({"sql": sql, "params": params})
+
+            with st.spinner("データベースに登録しています..."):
+                success = supabase_execute_sql(queries, use_transaction=True)
+
+            if success:
+                st.success(f"{len(queries)}件の受注データを正常に登録しました。")
+                st.balloons()
+            else:
+                st.error("登録処理中にエラーが発生しました。")
+
 def render_edit_order_form():
     """受注編集・削除フォームをレンダリングする"""
     st.header("受注編集・削除")
 
     # --- 検索フォーム ---
     st.markdown("##### 編集・削除したい受注を検索してください")
-    search_item = st.selectbox("品目で検索",options=item_codes, index=None, placeholder="品目を選択してください")
-
+    search_item = st.selectbox(
+        "品目で検索",
+        options=item_codes,
+        index=None,
+        placeholder="品目を選択してください",
+    )
 
     if not search_item:
         st.info("品目を選択してください。")
@@ -147,11 +254,9 @@ def render_edit_order_form():
     # --- 検索結果表示と行選択 ---
     st.markdown("##### 検索結果")
     st.info("編集または削除したい行を選択してください。")
-    
+
     # 日付列を文字列に変換して表示
-    display_df = search_df.with_columns(
-        pl.col("ギガ納期").dt.strftime("%Y-%m-%d")
-    )
+    display_df = search_df.with_columns(pl.col("ギガ納期").dt.strftime("%Y-%m-%d"))
 
     # セッションステートに行選択イベントを保存
     if "selected_order" not in st.session_state:
@@ -204,13 +309,17 @@ def render_edit_order_form():
                     """,
                     "params": {
                         "giga_due_date": new_giga_due_date,
-                        "linde_order_num": new_linde_order_num if new_linde_order_num else None,
+                        "linde_order_num": (
+                            new_linde_order_num if new_linde_order_num else None
+                        ),
                         "giga_order_num": giga_order_num,
                         "item_code": item_code,
                     },
                 }
                 with st.spinner("データを更新しています..."):
-                    success = supabase_execute_sql([update_query], use_transaction=False)
+                    success = supabase_execute_sql(
+                        [update_query], use_transaction=False
+                    )
 
                 if success:
                     if not "modified" in st.session_state:
@@ -236,7 +345,9 @@ def render_edit_order_form():
                     },
                 }
                 with st.spinner("データを削除しています..."):
-                    success = supabase_execute_sql([delete_query], use_transaction=False)
+                    success = supabase_execute_sql(
+                        [delete_query], use_transaction=False
+                    )
 
                 if success:
                     if not "deleted" in st.session_state:
@@ -251,7 +362,10 @@ def render_edit_order_form():
                     st.success("受注データを削除しました。")
                     st.session_state.pop("deleted")
 
-def fetch_electrode_status_list(item_code: str, limit: int = 50, params: dict = None) -> pl.DataFrame:
+
+def fetch_electrode_status_list(
+    item_code: str, limit: int = 50, params: dict = None
+) -> pl.DataFrame:
     """
     user_rolesテーブルからデータを取得し、Polars DataFrameとして返す
     Args:
@@ -269,7 +383,6 @@ def fetch_electrode_status_list(item_code: str, limit: int = 50, params: dict = 
         parameters = parameters | params
     else:
         strWheres = ""
-
 
     query = f"""
     -- 通常の電極ステータス (不具合登録されていないもの)
@@ -303,6 +416,7 @@ def fetch_electrode_status_list(item_code: str, limit: int = 50, params: dict = 
     df = supabase_read_sql(query, parameters=parameters)
     return df
 
+
 def is_giga_order_exist(giga_order_num: str) -> bool:
     """
     指定されたギガ注番と品目コードの組み合わせが存在するか確認する
@@ -321,6 +435,7 @@ def is_giga_order_exist(giga_order_num: str) -> bool:
     if not df.is_empty() and df["order_count"][0] > 0:
         return True
     return False
+
 
 if __name__ == "__main__":
     main()
